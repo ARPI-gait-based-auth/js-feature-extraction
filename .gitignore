@@ -1,0 +1,5 @@
+/node_modules/
+/.idea/
+*.js.map
+/pre-step1.js
+*.d.ts
