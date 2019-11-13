@@ -1,7 +1,7 @@
 Use `yarn install` or `npm install`
 ```
 npm run watch
-node pre-step1.js
+node start-from-csv.js
 ```
 
-Check index.html for output.
+Check reports/* for output.
