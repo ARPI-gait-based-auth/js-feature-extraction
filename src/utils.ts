@@ -1,78 +1,14 @@
-import { ma }  from 'moving-averages';
-import * as fs from 'fs-extra';
-import * as d3 from 'd3-interpolate';
+import { ma }            from 'moving-averages';
+import * as d3           from 'd3-interpolate';
+import { DataInterface } from './interfaces';
 
 const linterpol     = require('linterpol');
 const timeseries    = require('timeseries-analysis');
 const csv           = require('csvtojson');
 const Fili          = require('fili');
 const iirCalculator = new Fili.CalcCascades();
-const SAMPLE_FREQ   = 60;
 
-interface DataInterface {
-  time: Date[],  // SET AT READ TIME AND MODIFIED AT RESAMPLING
-
-  x: number[],  // SET AT READ TIME
-  y: number[],  // SET AT READ TIME
-  z: number[],  // SET AT READ TIME
-
-  resX?: number[], // PROCESSED OUTPUT
-  resY?: number[], // PROCESSED OUTPUT
-  resZ?: number[], // PROCESSED OUTPUT
-
-  minX?: number;
-  maxX?: number;
-  meanX?: number;
-  stdevX?: number;
-
-  minY?: number;
-  maxY?: number;
-  meanY?: number;
-  stdevY?: number;
-
-  minZ?: number;
-  maxZ?: number;
-  meanZ?: number;
-  stdevZ?: number;
-
-  w?: number[],
-  resW?: number[],
-
-  rawTime?: Date[],
-  username: string,
-  file: string
-}
-
-type Collection = DataInterface[];
-
-async function read(csvFiles: string[]): Promise<Collection> {
-  const subjects = await Promise.all(
-    csvFiles.map(async csvFilePath => {
-      const jsonObj             = await csv()
-        .fromFile(csvFilePath);
-      const data: DataInterface = {
-        x       : [],
-        y       : [],
-        z       : [],
-        time    : [],
-        username: '',
-        file    : csvFilePath,
-      };
-      jsonObj.forEach(d => {
-        data.username = d.username;
-        data.time.push(new Date(+d.timestamp));
-
-        data.x.push(+d.accX);
-        data.y.push(+d.accY);
-        data.z.push(+d.accZ);
-      });
-      return data;
-    })
-  );
-  return subjects;
-}
-
-function setInfo(data: DataInterface) {
+export function setInfo(data: DataInterface) {
   const tX = new timeseries.main(data.time.map((time, i) => [time, data.resX[i]]));
   const tY = new timeseries.main(data.time.map((time, i) => [time, data.resY[i]]));
   const tZ = new timeseries.main(data.time.map((time, i) => [time, data.resZ[i]]));
@@ -93,19 +29,19 @@ function setInfo(data: DataInterface) {
   data.stdevZ = tZ.stdev();
 }
 
-function copy(data: DataInterface) {
+export function copy(data: DataInterface) {
   data.resX = data.x.map(x => x);
   data.resY = data.y.map(x => x);
   data.resZ = data.z.map(x => x);
 }
 
-function smooth(data: DataInterface) {
+export function smooth(data: DataInterface) {
   data.resX = ma(data.resX, 5);
   data.resY = ma(data.resY, 5);
   data.resZ = ma(data.resZ, 5);
 }
 
-function resample(data: DataInterface, stepInMs: number) {
+export function resample(data: DataInterface, stepInMs: number) {
   // Figure out fixed time intervals
   const fixedTimes = [data.time[0]];
   while (+fixedTimes[fixedTimes.length - 1] + stepInMs < +data.time[data.time.length - 1]) {
@@ -115,7 +51,7 @@ function resample(data: DataInterface, stepInMs: number) {
   const _resample = (list: number[]): number[] => {
     /// OPT 1
     return fixedTimes.map(t => {
-      const nextTimeI = data.time.findIndex((a) => a > t);
+      const nextTimeI = data.time.findIndex((a) => +a > +t);
       const prevTimeI = nextTimeI - 1;
       if (nextTimeI === -1) { return 0; }
       const diffT          = (+data.time[nextTimeI]) - (+data.time[prevTimeI]);
@@ -142,46 +78,15 @@ function resample(data: DataInterface, stepInMs: number) {
   data.time    = fixedTimes;
 }
 
-function lowPassFilter(data: DataInterface) {
-  const iirFilterCoeffs = iirCalculator.lowpass({
-    order         : 3, // cascade 3 biquad filters (max: 12)
-    characteristic: 'butterworth',
-    Fs            : SAMPLE_FREQ, // sampling frequency
-    Fc            : 10, // cutoff frequency / center frequency for bandpass, bandstop, peak
-    BW            : 1, // bandwidth only for bandstop and bandpass filters - optional
-    gain          : 0, // gain for peak, lowshelf and highshelf
-    preGain       : false // adds one constant multiplication for highpass and lowpass
-    // k = (1 + cos(omega)) * 0.5 / k = 1 with preGain == false
-  });
-  const iirFilter       = new Fili.IirFilter(iirFilterCoeffs);
-  iirFilter.multiStep(data.resX);
-  iirFilter.multiStep(data.resY);
-  iirFilter.multiStep(data.resZ);
-}
-
-function highPassFilter(data: DataInterface) {
-  const iirFilterCoeffs = iirCalculator.highpass({
-    order         : 2,
-    characteristic: 'bessel',
-    Fs            : SAMPLE_FREQ,
-    Fc            : 50
-  });
-  const iirFilter       = new Fili.IirFilter(iirFilterCoeffs);
-  iirFilter.multiStep(data.resX);
-  iirFilter.multiStep(data.resY);
-  iirFilter.multiStep(data.resZ);
-}
-
-function pickAxis(data: DataInterface) {
+export function pickAxis(data: DataInterface) {
   data.w    = data.y;
   data.resW = data.resY;
 }
 
-
-function createReport(data: DataInterface) {
+export function createReport(data: DataInterface) {
   // specific
   const from = 100;
-  const to   = 500;
+  const to   = 200;
   data.time  = data.time.slice(from, to);
 
   data.w    = data.w.slice(from, 200);
@@ -204,12 +109,12 @@ function createReport(data: DataInterface) {
 
   const datasets = [];
   ['x', 'y', 'z'].map(k => {
-    // datasets.push({
-    //   data       : data[k].slice(from, to),
-    //     label      : 'RAW ' +  k,
-    //   borderColor: colors.pop(),
-    //   fill       : false
-    // });
+    datasets.push({
+      data       : data[k].slice(from, to),
+      label      : 'RAW ' + k,
+      borderColor: colors.pop(),
+      fill       : false
+    });
     datasets.push({
       data       : data['res' + k.toUpperCase()].slice(from, to),
       label      : 'PROCESSED ' + k,
@@ -218,7 +123,7 @@ function createReport(data: DataInterface) {
     })
   });
 
-  fs.writeFile('index.html', `
+  data.reports.main = `
 <html>
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
@@ -267,25 +172,5 @@ function createReport(data: DataInterface) {
   </script>
   </body>
   </html>
-  `);
+  `;
 }
-
-(async () => {
-  const collection: Collection = await read([
-    './data/tilendoma.raw.csv'
-  ]);
-
-  await Promise.all(collection.map(x => copy(x)));
-  await Promise.all(collection.map(x => smooth(x)));
-  await Promise.all(collection.map(x => resample(x, 1000 / SAMPLE_FREQ)));
-
-  //await Promise.all(collection.map(x => lowPassFilter(x)));
-  //await Promise.all(collection.map(x => highPassFilter(x)));
-
-  await Promise.all(collection.map(x => setInfo(x))); // like min, max, mean, stdev, ...
-  await Promise.all(collection.map(x => pickAxis(x))); // detect best axis, should be Z in 99%
-
-  await Promise.all(collection.map(x => createReport(x))); // make nice HTMl report charts
-})();
-
-
