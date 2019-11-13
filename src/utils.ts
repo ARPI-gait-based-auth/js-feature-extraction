@@ -2,11 +2,13 @@ import { ma }            from 'moving-averages';
 import * as d3           from 'd3-interpolate';
 import { DataInterface } from './interfaces';
 
-const linterpol     = require('linterpol');
+const linearInterpolator      = require('linear-interpolator');
 const timeseries    = require('timeseries-analysis');
 const csv           = require('csvtojson');
 const Fili          = require('fili');
 const iirCalculator = new Fili.CalcCascades();
+
+const SAMPLE_FREQ = 60;
 
 export function setInfo(data: DataInterface) {
   const tX = new timeseries.main(data.time.map((time, i) => [time, data.resX[i]]));
@@ -50,12 +52,14 @@ export function mapToRes(data: DataInterface) {
 }
 
 export function smooth(data: DataInterface) {
-  data.resX = ma(data.resX, 5);
-  data.resY = ma(data.resY, 5);
-  data.resZ = ma(data.resZ, 5);
+  data.resX = ma(data.resX, 10);
+  data.resY = ma(data.resY, 10);
+  data.resZ = ma(data.resZ, 10);
 }
 
-export function resample(data: DataInterface, stepInMs: number) {
+export function resample(data: DataInterface) {
+  const stepInMs = 1000 / SAMPLE_FREQ;
+
   // Figure out fixed time intervals
   const fixedTimes = [data.time[0]];
   while (+fixedTimes[fixedTimes.length - 1] + stepInMs < +data.time[data.time.length - 1]) {
@@ -63,25 +67,24 @@ export function resample(data: DataInterface, stepInMs: number) {
   }
 
   const _resample = (list: number[]): number[] => {
-    /// OPT 1
-    return fixedTimes.map(t => {
-      const nextTimeI = data.time.findIndex((a) => +a > +t);
-      const prevTimeI = nextTimeI - 1;
-      if (nextTimeI === -1) { return 0; }
-      const diffT          = (+data.time[nextTimeI]) - (+data.time[prevTimeI]);
-      const diffWithFixedT = (+data.time[nextTimeI]) - (+t);
+    // /// OPT 1
+    // return fixedTimes.map(t => {
+    //   const nextTimeI = data.time.findIndex((a) => +a > +t);
+    //   const prevTimeI = nextTimeI - 1;
+    //   if (nextTimeI === -1) { return 0; }
+    //   const diffT          = (+data.time[nextTimeI]) - (+data.time[prevTimeI]);
+    //   const diffWithFixedT = (+data.time[nextTimeI]) - (+t);
+    //   return d3.interpolateNumber(list[prevTimeI], list[nextTimeI])(diffWithFixedT / diffT);
+    // });
 
-      return d3.interpolateNumber(list[prevTimeI], list[nextTimeI])(diffWithFixedT / diffT);
-    });
-
-    /// OPT 2
+    // OPT 2
     // const points = list.map((v, i) => [+ data.time[i], v]);
     // return fixedTimes.map(t => linterpol(+ t, points));
 
     /// OPT 3
-    // const points = list.map((v, i) => [+ data.time[i], v]);
-    // const f = linearInterpolator(points);
-    // return fixedTimes.map(x => f(+x));
+    const points = list.map((v, i) => [+ data.time[i], v]);
+    const f = linearInterpolator(points);
+    return fixedTimes.map(x => f(+x));
   };
 
   data.resX = _resample(data.resX);
@@ -90,6 +93,8 @@ export function resample(data: DataInterface, stepInMs: number) {
 
   data.rawTime = data.time;
   data.time    = fixedTimes;
+
+  data.fs = SAMPLE_FREQ;
 }
 
 export function pickAxis(data: DataInterface) {
@@ -137,7 +142,7 @@ export function createReport(data: DataInterface) {
 <head><script src="https://cdn.plot.ly/plotly-latest.min.js"></script></head>
 <body>
 <style></style>
-  <div id="chart"></div>
+  <div id="chart"  style="height: 100vh"></div>
   <script>
     var layout = {
     title: '${ data.file }', 
@@ -147,14 +152,14 @@ export function createReport(data: DataInterface) {
       rangeslider: {range: ['${ data.time[0] }', '${ data.time[data.time.length - 1] }']},
       rangeselector: {buttons: [
         {
-          count: 3,
-          label: '3s',
+          count: 10,
+          label: '10s',
           step: 'second',
           stepmode: 'backward'
         },
         {
-           count: 6,
-           label: '6s',
+           count: 20,
+           label: '20s',
            step: 'second',
            stepmode: 'backward'
          },
