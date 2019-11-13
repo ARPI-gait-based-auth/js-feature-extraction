@@ -1,11 +1,11 @@
-import { Collection }                                              from './interfaces';
-import { copy, createReport, pickAxis, resample, setInfo, smooth } from './utils';
-import { highPassFilter, lowPassFilter }                           from './filters';
+import { Collection }                                                  from './interfaces';
+import { createReport, mapToRes, pickAxis, resample, setInfo, smooth } from './utils';
+import { highPassFilter, lowPassFilter }                               from './filters';
 
 const SAMPLE_FREQ = 60;
 
 export async function processCollections(collection: Collection) {
-  await Promise.all(collection.map(x => copy(x)));
+  await Promise.all(collection.map(x => mapToRes(x)));
   await Promise.all(collection.map(x => smooth(x)));
   await Promise.all(collection.map(x => resample(x, 1000 / SAMPLE_FREQ)));
 

@@ -29,7 +29,21 @@ export function setInfo(data: DataInterface) {
   data.stdevZ = tZ.stdev();
 }
 
-export function copy(data: DataInterface) {
+export function duplicate(data: DataInterface) {
+  const o = { ...data };
+  o.x     = o.x.map(x => x);
+  o.y     = o.y.map(x => x);
+  o.z     = o.z.map(x => x);
+  o.resX  = o.resX.map(x => x);
+  o.resY  = o.resX.map(x => x);
+  o.resZ  = o.resX.map(x => x);
+  if (o.resW) {
+    o.resW = o.resW.map(x => x);
+  }
+  return o;
+}
+
+export function mapToRes(data: DataInterface) {
   data.resX = data.x.map(x => x);
   data.resY = data.y.map(x => x);
   data.resZ = data.z.map(x => x);
@@ -84,91 +98,83 @@ export function pickAxis(data: DataInterface) {
 }
 
 export function createReport(data: DataInterface) {
-  // specific
-  const from = 100;
-  const to   = 200;
-  data.time  = data.time.slice(from, to);
-
-  data.w    = data.w.slice(from, 200);
-  data.resW = data.resW.slice(from, 200);
-
-  data.x    = data.x.map(e => e + 20);
-  data.resX = data.resX.map(e => e + 20);
-
-  data.y    = data.y.map(e => e + 15);
-  data.resY = data.resY.map(e => e + 15);
-
-  data.z    = data.z.map(e => e - 10);
-  data.resZ = data.resZ.map(e => e - 10);
-
   const colors = [
     '#cd6a1c', '#cdc226',
     '#0d6c0b', '#37cd79',
     '#cd4665', '#3e95cd',
   ];
 
-  const datasets = [];
+  const dataSet: any[] = [/*{
+    x: [0, 1, 2],
+    y: [6, 10, 2],
+    error_y: {
+      type: 'data',
+      array: [1, 2, 3],
+      visible: true
+    },
+    type: 'scatter'
+  }*/];
   ['x', 'y', 'z'].map(k => {
-    datasets.push({
-      data       : data[k].slice(from, to),
-      label      : 'RAW ' + k,
-      borderColor: colors.pop(),
-      fill       : false
+    dataSet.push({
+      type: 'scatter',
+      mode: 'lines',
+      name: `Raw [${ k }]`,
+      x   : data.time,
+      y   : data[k],
+      line: { color: colors.pop() }
     });
-    datasets.push({
-      data       : data['res' + k.toUpperCase()].slice(from, to),
-      label      : 'PROCESSED ' + k,
-      borderColor: colors.pop(),
-      fill       : false
-    })
+    dataSet.push({
+      type: 'scatter',
+      mode: 'lines',
+      name: `R [${ k.toUpperCase() }]`,
+      x   : data.time,
+      y   : data['res' + k.toUpperCase()],
+      line: { color: colors.pop() }
+    });
   });
-
   data.reports.main = `
 <html>
+<head><script src="https://cdn.plot.ly/plotly-latest.min.js"></script></head>
 <body>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.1"></script>
-<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@0.7.4"></script>
-
-<style>.myChartDiv {
-  max-width: 1600px;
-  max-height: 600px;
-}</style>
-  <div class="myChartDiv"><canvas id="line-chart" width="1600" height="600"></canvas></div>
+<style></style>
+  <div id="chart"></div>
   <script>
+    var layout = {
+    title: 'Custom Range', 
+    xaxis: {
+      range: ['${ data.time[0] }', '${ data.time[data.time.length - 1] }'], 
+      type: 'date',
+      rangeslider: {range: ['${ data.time[0] }', '${ data.time[data.time.length - 1] }']},
+      rangeselector: {buttons: [
+        {
+          count: 3,
+          label: '3s',
+          step: 'second',
+          stepmode: 'backward'
+        },
+       {
+          count: 6,
+          label: '6s',
+          step: 'second',
+          stepmode: 'backward'
+        },
+         {
+          count: 30,
+          label: '30s',
+          step: 'second',
+          stepmode: 'backward'
+        },
+        {step: 'all'}
+      ]},
+    }, 
+    yaxis: {
+      autorange: true, 
+      range: [-10, 10], 
+      type: 'linear'
+    }
+  };
   
-  new Chart(document.getElementById("line-chart"), {
-  type: 'line',
-  data: {
-    labels: [${ data.time.map((o, i) => i).join(', ') }],
-    datasets: ${ JSON.stringify(datasets) }
-  },
-  options: {
-    title: {
-      display: true,
-      text: 'Acc.'
-    },
-      scales: {
-            yAxes: [{
-                ticks: {
-                    beginAtZero:true
-                }
-            }]
-        },
-        pan: {
-            enabled: true,
-            mode: 'x'
-        },
-        zoom: {
-            enabled: true,
-            mode: 'x',
-             sensitivity: 0.1,
-  speed: 100 // would be a percentage
-        }
-  },
-
-});
+  Plotly.newPlot('chart', ${ JSON.stringify(dataSet) }, layout, {showSendToCloud: true});
   </script>
   </body>
   </html>
