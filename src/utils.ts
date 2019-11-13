@@ -114,13 +114,13 @@ export function createReport(data: DataInterface) {
     },
     type: 'scatter'
   }*/];
-  ['x', 'y', 'z'].map(k => {
+  ['x', 'y', 'z'].map((k, i) => {
     dataSet.push({
       type: 'scatter',
       mode: 'lines',
       name: `Raw [${ k }]`,
       x   : data.time,
-      y   : data[k],
+      y   : data[k].map(x=>x+25*i),
       line: { color: colors.pop() }
     });
     dataSet.push({
@@ -128,7 +128,7 @@ export function createReport(data: DataInterface) {
       mode: 'lines',
       name: `R [${ k.toUpperCase() }]`,
       x   : data.time,
-      y   : data['res' + k.toUpperCase()],
+      y   : data['res' + k.toUpperCase()].map(x=>x+25*i),
       line: { color: colors.pop() }
     });
   });
@@ -140,7 +140,7 @@ export function createReport(data: DataInterface) {
   <div id="chart"></div>
   <script>
     var layout = {
-    title: 'Custom Range', 
+    title: '${ data.file }', 
     xaxis: {
       range: ['${ data.time[0] }', '${ data.time[data.time.length - 1] }'], 
       type: 'date',
@@ -152,12 +152,12 @@ export function createReport(data: DataInterface) {
           step: 'second',
           stepmode: 'backward'
         },
-       {
-          count: 6,
-          label: '6s',
-          step: 'second',
-          stepmode: 'backward'
-        },
+        {
+           count: 6,
+           label: '6s',
+           step: 'second',
+           stepmode: 'backward'
+         },
          {
           count: 30,
           label: '30s',
