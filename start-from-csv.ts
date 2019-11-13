@@ -41,7 +41,7 @@ async function writeReport(data: DataInterface) {
 
 (async () => {
   const collection: Collection = await read([
-    './data/tilendoma.raw.csv',
+    './data/n5_r_u0_0-fri.raw.csv',
   ]);
 
   await processCollections(collection);
